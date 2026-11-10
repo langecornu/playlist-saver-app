@@ -152,6 +152,24 @@ Open **http://localhost:5173**, paste a Spotify link, choose a format and qualit
 
 The page checks the API every few seconds. If the API stops, the UI shows an "API offline" banner, asks the dev server to restart it automatically, and recovers on its own. There is also a **Start server** button in the banner. Links copied from Spotify's Share menu (with `?si=...` tracking) are cleaned up automatically.
 
+### Desktop shortcut (macOS and Linux)
+
+To start the app without a terminal, create a Desktop icon once:
+
+```bash
+scripts/install-shortcut.sh
+```
+
+Double-clicking **Playlist Saver** on your Desktop then starts the app if it isn't running, waits until it is ready, and opens it in your browser. If it is already running it just opens the page. The first launch installs the front-end packages for you.
+
+- On macOS the shortcut is a small app bundle created on your machine, so there is no "unidentified developer" warning. It uses your login shell so it finds Node.js and Python the same way Terminal does.
+- On Linux it is a `.desktop` file; your desktop may ask you to choose **Allow Launching** the first time.
+- Stop the app with `scripts/launch.sh stop`. Logs are in `~/.config/playlist-saver/launcher.log`.
+- Remove the shortcut with `scripts/install-shortcut.sh --remove`.
+- Windows isn't automated: create a shortcut that runs `npm --prefix web run dev` and open `http://localhost:5173`.
+
+The shortcut points at this folder, so run the installer again if you move the repository.
+
 ### Running the API by hand (optional)
 
 If you'd rather run the API yourself, or you're not using the Vite dev server:
@@ -318,6 +336,9 @@ Useful options: `--format mp3|m4a|flac|opus|ogg|wav`, `--bitrate 192k`, `--threa
 │   ├── mock_cloud.py        Folder-backed demo provider
 │   ├── tests/               Unit tests
 │   └── requirements.txt     Python dependencies
+├── scripts/
+│   ├── launch.sh            Start the app if needed and open it in the browser
+│   └── install-shortcut.sh  Create or remove the Desktop shortcut
 └── web/
     ├── index.html
     ├── vite.config.ts       Dev server, /api proxy, API auto-start
