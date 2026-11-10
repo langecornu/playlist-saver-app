@@ -237,22 +237,21 @@ class Engine(unittest.TestCase):
 
         asyncio.run(go())
 
-    def test_failed_or_cancelled_checks_are_retried_in_an_hour(self):
+    def test_failed_checks_are_retried_in_an_hour_but_cancelled_ones_are_not(self):
         m = self.m
 
         async def go():
-            for status, interval in (("failed", "daily"), ("cancelled", "weekly"), ("done", "daily")):
+            for status in ("failed", "cancelled", "done"):
                 url = f"https://open.spotify.com/playlist/retry{status}"
-                pl = m.store.save_playlist({"url": url, "interval": interval, "last_run": 0, "request": {}})
+                pl = m.store.save_playlist({"url": url, "interval": "daily", "last_run": 0, "request": {}})
                 job = m.Job(m.resolve_plan(self.req(url=url)), "auto")
                 job.status = status
                 job.record_history()
                 got = m.store.get_playlist(pl["id"])
-                nxt = m.playlist_view(got)["next_run"]
-                if status == "done":
-                    self.assertEqual(got["last_run"], 0)  # untouched: the normal schedule applies
+                if status == "failed":
+                    self.assertAlmostEqual(m.playlist_view(got)["next_run"] - time.time(), m.RETRY_AFTER, delta=5)
                 else:
-                    self.assertAlmostEqual(nxt - time.time(), m.RETRY_AFTER, delta=5)
+                    self.assertEqual(got["last_run"], 0)  # untouched: the normal schedule applies
 
         asyncio.run(go())
 
@@ -268,6 +267,8 @@ class Engine(unittest.TestCase):
             h = m.store.history(pl["url"], 1)[0]
             self.assertEqual(h["status"], "failed")
             self.assertIn("isn't connected", h["detail"])
+            nxt = m.playlist_view(m.store.get_playlist(pl["id"]))["next_run"]
+            self.assertAlmostEqual(nxt - time.time(), m.RETRY_AFTER, delta=5)  # retried soon, not tomorrow
 
         asyncio.run(go())
 

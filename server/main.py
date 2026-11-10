@@ -5,6 +5,7 @@ Run:  python3 -m uvicorn main:app --port 8000   (from this directory)
 import asyncio
 import importlib.util
 import json
+import logging
 import os
 import re
 import shutil
@@ -40,6 +41,7 @@ BITRATES = {"auto", "128k", "192k", "256k", "320k"}
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 NAMINGS = {"flat", "artist_album"}
 INTERVALS = {"daily": 86400, "weekly": 7 * 86400}
+log = logging.getLogger("playlist-saver")
 RETRY_AFTER = 3600  # seconds to wait before re-checking a playlist whose last check failed
 ACTIVE = ("queued", "starting", "running", "uploading")
 
@@ -433,12 +435,13 @@ class Job:
                 if self.name:
                     patch["name"] = self.name
                 interval = INTERVALS.get(saved.get("interval", ""))
-                if interval and self.status in ("failed", "cancelled"):
-                    # Try again soon instead of waiting a whole day or week
+                if interval and self.status == "failed":
+                    # Try again soon instead of waiting a whole day or week. A run the user
+                    # cancelled on purpose just waits for the normal interval.
                     patch["last_run"] = entry["at"] - interval + RETRY_AFTER
                 store.update_playlist(pid, patch)
-        except Exception:  # history is a convenience; never let it break a job
-            pass
+        except Exception:  # history is a convenience; never let it break a job, but do report it
+            log.exception("Could not record history for job %s", self.id)
 
     # ---- main run
     async def _run(self):
@@ -961,7 +964,12 @@ def launch_saved(pl: dict, trigger: str) -> Job | None:
                 "added": [], "added_count": 0, "skipped": 0, "failed": 0, "detail": str(e.detail),
             }
         )
-        store.update_playlist(pl["id"], {"last_status": "failed", "last_finished": time.time(), "last_added": 0})
+        now = time.time()
+        patch = {"last_status": "failed", "last_finished": now, "last_added": 0}
+        interval = INTERVALS.get(pl.get("interval", ""))
+        if interval:
+            patch["last_run"] = now - interval + RETRY_AFTER  # retry soon, not after a whole interval
+        store.update_playlist(pl["id"], patch)
         return None
     return start_job(plan, trigger)
 

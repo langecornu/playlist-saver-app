@@ -7,7 +7,13 @@ set -eu
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LAUNCH="$ROOT/scripts/launch.sh"
-DESKTOP="${DESKTOP_DIR:-$HOME/Desktop}"
+if [ -n "${DESKTOP_DIR:-}" ]; then
+  DESKTOP="$DESKTOP_DIR"
+elif command -v xdg-user-dir >/dev/null 2>&1; then
+  DESKTOP="$(xdg-user-dir DESKTOP)"
+else
+  DESKTOP="$HOME/Desktop"
+fi
 chmod +x "$LAUNCH"
 
 case "$(uname)" in
@@ -42,12 +48,19 @@ PLIST
       echo "Removed the shortcut"; exit 0
     fi
     mkdir -p "$DESKTOP" "$HOME/.local/share/applications"
+    # Desktop Entry spec: only double quotes quote; inside them `\`, `"`, `$` and backtick need a
+    # backslash, and a literal % is written %%. launch.sh finds node/python in a login shell itself.
+    EXEC_PATH="${LAUNCH//\\/\\\\}"
+    EXEC_PATH="${EXEC_PATH//\"/\\\"}"
+    EXEC_PATH="${EXEC_PATH//\$/\\\$}"
+    EXEC_PATH="${EXEC_PATH//\`/\\\`}"
+    EXEC_PATH="${EXEC_PATH//\%/%%}"
     cat >"$ENTRY" <<DESKTOP_FILE
 [Desktop Entry]
 Type=Application
 Name=Playlist Saver
 Comment=Start Playlist Saver and open it in your browser
-Exec=bash -lc 'exec "\$0"' "$LAUNCH"
+Exec="$EXEC_PATH"
 Terminal=false
 Categories=AudioVideo;Audio;
 DESKTOP_FILE

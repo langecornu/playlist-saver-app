@@ -1,0 +1,5 @@
+# What the unit tests import. They use a stand-in for spotDL, so spotDL itself is not needed.
+fastapi>=0.100
+uvicorn>=0.23
+pydantic>=2
+certifi

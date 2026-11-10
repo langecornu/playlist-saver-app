@@ -14,7 +14,7 @@ First public release.
 
 ## Unreleased
 
-- A scheduled playlist check that fails or is cancelled is retried after an hour instead of waiting a full day or week.
+- A scheduled playlist check that fails (including when it can't start because a cloud service is disconnected) is retried after an hour instead of waiting a full day or week. A check you cancel yourself waits for the normal schedule.
 - Desktop shortcut (`scripts/install-shortcut.sh`) that starts the app if needed and opens it in the browser, plus `scripts/launch.sh stop`.
-- Stopping the dev server with a termination signal now also stops the API it started.
-- Continuous integration runs the backend tests and the front-end type-check and build on every pull request.
+- Continuous integration runs the backend tests (Python 3.10 and 3.13), the front-end type-check and build, and ShellCheck on every pull request. Dependabot proposes updates for GitHub Actions, npm and pip.
+- The launcher no longer risks stopping an unrelated process, handles simultaneous double-clicks, and fails fast when the port is busy.
