@@ -1,0 +1,5 @@
+spotdl>=4.6,<5
+# FastAPI, uvicorn and pydantic are installed as spotDL dependencies;
+# listed explicitly so the server doesn't break if that changes.
+fastapi>=0.100
+uvicorn>=0.23

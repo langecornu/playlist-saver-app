@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*.mp3
+*.m4a
+*.flac
+*.opus
+*.ogg
+*.wav
+.spotdl/
