@@ -5,6 +5,7 @@ which carries no user data. Results are cached so the UI can poll freely.
 """
 import json
 import re
+import shlex
 import ssl
 import subprocess
 import sys
@@ -17,7 +18,11 @@ TOOLS = {
     "spotdl": {"label": "spotDL", "repo": "https://github.com/spotDL/spotify-downloader/releases"},
     "yt-dlp": {"label": "yt-dlp", "repo": "https://github.com/yt-dlp/yt-dlp/releases"},
 }
-UPGRADE_CMD = "pip3 install --upgrade spotdl yt-dlp"
+
+
+def upgrade_command() -> str:
+    """Upgrades the Python this server runs on, so it works for a venv and for a Homebrew Python alike."""
+    return f"{shlex.quote(sys.executable)} -m pip install --upgrade spotdl yt-dlp"
 
 _lock = threading.Lock()
 _cache: dict = {"at": 0.0, "data": None}
@@ -85,6 +90,6 @@ def check(spotdl_cmd: list[str], force: bool = False) -> dict:
                     "url": meta["repo"],
                 }
             )
-        data = {"tools": tools, "command": UPGRADE_CMD, "checked_at": time.time()}
+        data = {"tools": tools, "command": upgrade_command(), "checked_at": time.time()}
         _cache.update(at=time.time(), data=data)
         return data

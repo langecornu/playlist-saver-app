@@ -4,6 +4,20 @@ A local web app for saving Spotify and YouTube Music playlists, albums and songs
 
 > **Disclaimer.** Playlist Saver is only a graphical interface. It does not host, store or download any content itself: it runs the open-source tools [spotDL](https://github.com/spotDL/spotify-downloader), [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [FFmpeg](https://ffmpeg.org), which you install and run on your own computer. Use it only for music you have the right to copy; you are responsible for following copyright law and the terms of the services involved. Not affiliated with or endorsed by Spotify, YouTube, Google, Amazon or Dropbox.
 
+<p align="center">
+  <a href="docs/USER_GUIDE.md"><img src="web/public/manual/home.png" alt="Playlist Saver" width="760"></a>
+</p>
+
+## 📖 User guide (start here if you are new)
+
+**[Read the full user guide with screenshots →](docs/USER_GUIDE.md)**
+It is written for people with no technical background and walks you through every step, including what to do when an error message appears. The same guide is built into the app: click **Help** at the top right.
+
+| | |
+| --- | --- |
+| **Install** | [Before you start](docs/USER_GUIDE.md#before-you-start) · [Using Terminal](docs/USER_GUIDE.md#using-terminal-in-two-minutes) · [Step 1: Homebrew](docs/USER_GUIDE.md#step-1-install-homebrew) · [Step 2: Python, Node, FFmpeg](docs/USER_GUIDE.md#step-2-install-python-node-and-ffmpeg) · [Step 3: Download](docs/USER_GUIDE.md#step-3-download-playlist-saver) · [Step 4: spotDL](docs/USER_GUIDE.md#step-4-install-spotdl-and-the-apps-packages) · [Step 5: Start](docs/USER_GUIDE.md#step-5-start-the-app) · [Desktop shortcut](docs/USER_GUIDE.md#desktop-shortcut) · [Install problems](docs/USER_GUIDE.md#install-problems-and-how-to-fix-them) |
+| **Use** | [Save your first playlist](docs/USER_GUIDE.md#save-your-first-playlist) · [Dropbox](docs/USER_GUIDE.md#connect-dropbox) · [Google Drive](docs/USER_GUIDE.md#connect-google-drive) · [Keep in sync](docs/USER_GUIDE.md#keep-a-playlist-in-sync) · [Duplicates](docs/USER_GUIDE.md#find-duplicate-songs) · [Troubleshooting](docs/USER_GUIDE.md#troubleshooting) |
+
 **Features:** a searchable built-in user manual with screenshots, Spotify and YouTube Music links, Dropbox and Google Drive storage, never-overwrite uploads, saved playlists that re-check daily or weekly, a download queue, sync history, synced lyrics, `.m3u8` playlist files, an `Artist/Album` file layout, a duplicate finder, update notices for spotDL and yt-dlp, and a configurable server port.
 
 It is a React + Vite front end on top of [spotDL](https://github.com/spotDL/spotify-downloader), driven by a small FastAPI server that runs the `spotdl` command, parses its progress, and streams it to the browser.
@@ -51,89 +65,32 @@ Tested on macOS (Intel). It should work on Linux and Windows too, but the comman
 
 ## Installation
 
-### 1. Install the system tools
-
-**macOS (Homebrew):**
+> **New to the Terminal?** Follow the [step-by-step install guide](docs/USER_GUIDE.md#before-you-start) instead. It explains Homebrew, Terminal and every error you might meet. The short version for developers is below.
 
 ```bash
-# Install Homebrew first if you don't have it: https://brew.sh
+# 1. System tools (macOS with Homebrew; on Ubuntu/Debian: sudo apt install python3 python3-pip python3-venv nodejs npm ffmpeg)
 brew install python node ffmpeg
-```
 
-**Ubuntu / Debian:**
-
-```bash
-sudo apt update
-sudo apt install python3 python3-pip python3-venv nodejs npm ffmpeg
-```
-
-**Windows:** install [Python](https://www.python.org/downloads/), [Node.js](https://nodejs.org/) and [ffmpeg](https://ffmpeg.org/download.html) (or `winget install ffmpeg`), and make sure all three are on your `PATH`.
-
-Check they work:
-
-```bash
-python3 --version
-node --version
-ffmpeg -version
-```
-
-### 2. Clone this repo
-
-```bash
+# 2. Get the code
 git clone https://github.com/langecornu2027/playlist-saver-app.git
 cd playlist-saver-app
-```
 
-### 3. Install the Python dependencies (spotDL and the API server)
-
-spotDL already depends on FastAPI, uvicorn and pydantic, so installing it covers everything the server needs.
-
-**Option A: virtual environment (recommended, keeps your system Python clean):**
-
-```bash
+# 3. spotDL and the API server, in a private virtual environment (no activation needed: the app finds .venv by itself)
 python3 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r server/requirements.txt
+.venv/bin/pip install -r server/requirements.txt      # Windows: .venv\Scripts\pip
+
+# 4. Front-end packages
+npm --prefix web install
+
+# 5. Deno, which yt-dlp needs for some YouTube downloads (recommended)
+.venv/bin/spotdl --download-deno
 ```
 
-**Option B: install globally:**
+Why a virtual environment: Homebrew's Python refuses `pip install` outside one (`externally-managed-environment`), and the Desktop shortcut starts the app without any shell, so the app looks for `.venv` itself. To use another interpreter, set `PYTHON=/path/to/python`.
 
-```bash
-pip3 install -r server/requirements.txt
-```
+You can also run spotDL as `python3 -m spotdl`. Check it with `.venv/bin/spotdl --version`.
 
-Verify spotDL is installed:
-
-```bash
-spotdl --version
-```
-
-If `spotdl: command not found`, pip installed it to a folder that isn't on your `PATH`. Find it with `pip3 show -f spotdl` (look for the `bin/spotdl` path) and add that folder to your `PATH`. On macOS with the python.org installer it is usually:
-
-```bash
-echo 'export PATH="/Library/Frameworks/Python.framework/Versions/3.14/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-(Adjust `3.14` to your Python version.) You can also run it as `python3 -m spotdl`.
-
-### 4. Install the front-end dependencies
-
-```bash
-cd web
-npm install
-cd ..
-```
-
-### 5. Install Deno (recommended)
-
-Recent YouTube changes mean yt-dlp needs a JavaScript runtime for some videos. Without it, some tracks fail with `AudioProviderError: YT-DLP download error`. spotDL can fetch Deno for you:
-
-```bash
-spotdl --download-deno
-```
-
-Alternatively install it system-wide (`brew install deno`).
+Playlist Saver does **not** bundle spotDL, yt-dlp or ffmpeg. You install them from their own projects: [spotDL](https://github.com/spotDL/spotify-downloader), [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [FFmpeg](https://ffmpeg.org/download.html).
 
 ---
 
@@ -142,11 +99,10 @@ Alternatively install it system-wide (`brew install deno`).
 One command starts everything:
 
 ```bash
-cd web
-npm run dev
+npm --prefix web run dev
 ```
 
-This starts the web UI on port 5173 **and** launches the API server on port 8000 for you. (If you used a virtual environment, activate it first with `source .venv/bin/activate` so the right Python is used, or set `PYTHON=/path/to/python`.)
+This starts the web UI on port 5173 **and** launches the API server on port 8000 for you, using the `.venv` Python if it exists.
 
 Open **http://localhost:5173**, paste a Spotify link, choose a format and quality, and press Download.
 
@@ -229,7 +185,8 @@ Defaults for all of these live in **Settings → Defaults**.
 YouTube changes often, so an old spotDL or yt-dlp is the most common reason tracks fail. The app checks PyPI for newer versions (an anonymous request that sends none of your data) and shows a banner with the update command and a link to the release notes:
 
 ```bash
-pip3 install --upgrade spotdl yt-dlp
+# the banner's Copy command button gives the exact line for your setup, for example:
+.venv/bin/pip install --upgrade spotdl yt-dlp
 ```
 
 Restart the app afterwards. You can dismiss the banner for a given version.
@@ -292,7 +249,8 @@ Dropbox and Google Drive then appear as connected demo accounts backed by folder
 
 ```bash
 cd server && python3 -m unittest discover tests   # API
-cd web && npm test                                # manual search and content checks
+cd web && npm test                                # manual search, content and docs/USER_GUIDE.md checks
+cd web && npm run guide                           # regenerate docs/USER_GUIDE.md after editing the manual
 ```
 
 ---
@@ -314,12 +272,12 @@ Useful options: `--format mp3|m4a|flac|opus|ogg|wav`, `--bitrate 192k`, `--threa
 
 | Problem | Fix |
 | --- | --- |
-| `spotdl: command not found` | Add Python's `bin` folder to your `PATH` (see step 3), or run `python3 -m spotdl`. |
-| UI banner says "spotDL missing" | The API server couldn't find `spotdl`. It checks your `PATH`, the usual Python install folders, and `python -m spotdl`. Run `pip3 install -r server/requirements.txt` with the same Python that `python3` points to. |
-| "API offline" banner won't clear | Run `python3 -m uvicorn main:app --port 8000` from `server/` and read the error. Usually a missing dependency (`pip3 install -r server/requirements.txt`) or another process on port 8000. |
+| `spotdl: command not found` | Run it as `.venv/bin/spotdl`, or `python3 -m spotdl`. |
+| UI banner says "spotDL missing" | The API server couldn't find `spotdl`. It checks your `PATH`, the usual Python install folders, and `python -m spotdl`. Run `.venv/bin/pip install -r server/requirements.txt` from the project folder. |
+| "API offline" banner won't clear | Run `python3 -m uvicorn main:app --port 8000` from `server/` and read the error. Usually a missing dependency (repeat the pip step above) or another process on port 8000. |
 | `address already in use` on port 8000 | Something is already using the port. Stop the other process, or change the port in `web/vite.config.ts`. |
-| Some tracks fail with `AudioProviderError` | Run `spotdl --download-deno`, then download the same link again. Saved tracks are skipped. |
-| `ffmpeg was not found` | Install it (`brew install ffmpeg`) or run `spotdl --download-ffmpeg`. |
+| Some tracks fail with `AudioProviderError` | Run `.venv/bin/spotdl --download-deno`, then download the same link again. Saved tracks are skipped. |
+| `ffmpeg was not found` | Install it with `brew install ffmpeg`. |
 | Playlist lookup is slow or stalls | Spotify rate-limits requests. Wait a minute, or avoid running several spotDL jobs at once. |
 | Private playlist won't load | spotDL can only read public playlists without your own Spotify API credentials. Make it public, or create an app at https://developer.spotify.com and pass `--client-id` and `--client-secret`. |
 | Wrong song downloaded | Matches come from YouTube search, so live or cover versions can slip through. Delete the file and download the single track by its Spotify link. |
@@ -341,6 +299,8 @@ Useful options: `--format mp3|m4a|flac|opus|ogg|wav`, `--bitrate 192k`, `--threa
 │   ├── mock_cloud.py        Folder-backed demo provider
 │   ├── tests/               Unit tests
 │   └── requirements.txt     Python dependencies
+├── docs/
+│   └── USER_GUIDE.md        Illustrated user guide (generated from the in-app manual)
 ├── scripts/
 │   ├── launch.sh            Start the app if needed and open it in the browser
 │   └── install-shortcut.sh  Create or remove the Desktop shortcut
