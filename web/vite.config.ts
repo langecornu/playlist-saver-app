@@ -92,6 +92,13 @@ function apiLauncher(): Plugin {
       const stop = () => child?.kill();
       server.httpServer?.on("close", stop);
       process.on("exit", stop);
+      // `kill` and the desktop launcher's stop command send SIGTERM, which skips the "exit" handler
+      for (const sig of ["SIGTERM", "SIGHUP"] as const) {
+        process.on(sig, () => {
+          stop();
+          process.exit(0);
+        });
+      }
     },
     configurePreviewServer(server) {
       server.middlewares.use("/api", forwardApi);

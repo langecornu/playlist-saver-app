@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -135,6 +136,8 @@ class Engine(unittest.TestCase):
         self.m = self.main
         self.m.SPOTDL = [sys.executable, str(self.script)]
         self.m.jobs.clear()
+        for pl in self.m.store.playlists():  # tests share one store; start each from a clean slate
+            self.m.store.delete_playlist(pl["id"])
         self.m.slots = self.m.Slots()  # an asyncio.Condition belongs to one event loop; each test makes its own
         self.out = tempfile.mkdtemp()
 
@@ -231,6 +234,25 @@ class Engine(unittest.TestCase):
             self.assertGreater(got["last_run"], now)
             for p in (fresh, off, weekly):
                 self.assertEqual(m.store.get_playlist(p["id"])["last_run"], {fresh["id"]: now - 100, off["id"]: 0, weekly["id"]: now - 90000}[p["id"]])
+
+        asyncio.run(go())
+
+    def test_failed_or_cancelled_checks_are_retried_in_an_hour(self):
+        m = self.m
+
+        async def go():
+            for status, interval in (("failed", "daily"), ("cancelled", "weekly"), ("done", "daily")):
+                url = f"https://open.spotify.com/playlist/retry{status}"
+                pl = m.store.save_playlist({"url": url, "interval": interval, "last_run": 0, "request": {}})
+                job = m.Job(m.resolve_plan(self.req(url=url)), "auto")
+                job.status = status
+                job.record_history()
+                got = m.store.get_playlist(pl["id"])
+                nxt = m.playlist_view(got)["next_run"]
+                if status == "done":
+                    self.assertEqual(got["last_run"], 0)  # untouched: the normal schedule applies
+                else:
+                    self.assertAlmostEqual(nxt - time.time(), m.RETRY_AFTER, delta=5)
 
         asyncio.run(go())
 

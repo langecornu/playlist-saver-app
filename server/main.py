@@ -40,6 +40,7 @@ BITRATES = {"auto", "128k", "192k", "256k", "320k"}
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 NAMINGS = {"flat", "artist_album"}
 INTERVALS = {"daily": 86400, "weekly": 7 * 86400}
+RETRY_AFTER = 3600  # seconds to wait before re-checking a playlist whose last check failed
 ACTIVE = ("queued", "starting", "running", "uploading")
 
 
@@ -426,10 +427,15 @@ class Job:
             }
             store.add_history(entry)
             pid = store.playlist_id(self.plan.url)
-            if store.get_playlist(pid):
+            saved = store.get_playlist(pid)
+            if saved:
                 patch = {"last_status": self.status, "last_finished": entry["at"], "last_added": len(added)}
                 if self.name:
                     patch["name"] = self.name
+                interval = INTERVALS.get(saved.get("interval", ""))
+                if interval and self.status in ("failed", "cancelled"):
+                    # Try again soon instead of waiting a whole day or week
+                    patch["last_run"] = entry["at"] - interval + RETRY_AFTER
                 store.update_playlist(pid, patch)
         except Exception:  # history is a convenience; never let it break a job
             pass
