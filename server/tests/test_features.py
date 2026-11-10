@@ -411,3 +411,15 @@ class PortSetting(unittest.TestCase):
             asyncio.run(self.m.restart_api())
         self.assertEqual(ctx.exception.status_code, 400)
 
+
+
+class UpgradeCommand(unittest.TestCase):
+    def test_upgrades_the_python_the_server_runs_on(self):
+        import shlex
+        import sys
+
+        import versions
+
+        parts = shlex.split(versions.upgrade_command())
+        self.assertEqual(parts[0], sys.executable)
+        self.assertEqual(parts[1:], ["-m", "pip", "install", "--upgrade", "spotdl", "yt-dlp"])

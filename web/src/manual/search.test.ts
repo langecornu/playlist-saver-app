@@ -4,6 +4,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { MANUAL } from "./content.ts";
+import { slug, toMarkdown } from "./markdown.ts";
 import { highlightParts, normalise, search, tokenize } from "./search.ts";
 
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../public");
@@ -85,4 +86,15 @@ test("every screenshot the manual shows exists", () => {
       assert.ok(fs.existsSync(path.join(publicDir, b.src)), `${b.src} is missing (section ${s.id})`);
     }
   }
+});
+
+test("docs/USER_GUIDE.md matches the in-app manual (run `npm run guide` to refresh it)", () => {
+  const file = path.resolve(publicDir, "../../docs/USER_GUIDE.md");
+  assert.ok(fs.existsSync(file), "docs/USER_GUIDE.md is missing");
+  assert.equal(fs.readFileSync(file, "utf8"), toMarkdown(MANUAL));
+});
+
+test("guide anchors are unique so the contents links work", () => {
+  const slugs = MANUAL.map((s) => slug(s.title));
+  assert.equal(new Set(slugs).size, slugs.length);
 });

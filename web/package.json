@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/manual/search.test.ts"
+    "test": "node --experimental-strip-types --test src/manual/search.test.ts",
+    "guide": "node --experimental-strip-types scripts/build-guide.ts"
   },
   "dependencies": {
     "react": "^19.0.0",
