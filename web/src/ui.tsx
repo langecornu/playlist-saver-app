@@ -8,12 +8,13 @@ interface ModalProps {
   title: string;
   subtitle?: string;
   wide?: boolean;
+  huge?: boolean;
   children: React.ReactNode;
   footer?: React.ReactNode;
   aside?: React.ReactNode;
 }
 
-export function Modal({ open, onClose, title, subtitle, wide, children, footer, aside }: ModalProps) {
+export function Modal({ open, onClose, title, subtitle, wide, huge, children, footer, aside }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -25,7 +26,7 @@ export function Modal({ open, onClose, title, subtitle, wide, children, footer, 
   return (
     <dialog
       ref={ref}
-      className={`modal ${wide ? "wide" : ""}`}
+      className={`modal ${wide ? "wide" : ""} ${huge ? "huge" : ""}`}
       aria-label={title}
       onClose={onClose}
       onMouseDown={(e) => {

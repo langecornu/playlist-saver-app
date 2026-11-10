@@ -14,6 +14,7 @@ First public release.
 
 ## Unreleased
 
+- Built-in user manual: a **Help** link in the top bar opens a searchable, sectioned guide with screenshots, from installing to everyday use. Search matches accents and several words at once and highlights results.
 - A scheduled playlist check that fails (including when it can't start because a cloud service is disconnected) is retried after an hour instead of waiting a full day or week. A check you cancel yourself waits for the normal schedule.
 - Desktop shortcut (`scripts/install-shortcut.sh`) that starts the app if needed and opens it in the browser, plus `scripts/launch.sh stop`.
 - Continuous integration runs the backend tests (Python 3.10 and 3.13), the front-end type-check and build, and ShellCheck on every pull request. Dependabot proposes updates for GitHub Actions, npm and pip.
