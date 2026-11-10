@@ -4,7 +4,7 @@ A local web app for saving Spotify and YouTube Music playlists, albums and songs
 
 > **Disclaimer.** Playlist Saver is only a graphical interface. It does not host, store or download any content itself: it runs the open-source tools [spotDL](https://github.com/spotDL/spotify-downloader), [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [FFmpeg](https://ffmpeg.org), which you install and run on your own computer. Use it only for music you have the right to copy; you are responsible for following copyright law and the terms of the services involved. Not affiliated with or endorsed by Spotify, YouTube, Google, Amazon or Dropbox.
 
-**Features:** Spotify and YouTube Music links, Dropbox and Google Drive storage, never-overwrite uploads, saved playlists that re-check daily or weekly, a download queue, sync history, synced lyrics, `.m3u8` playlist files, an `Artist/Album` file layout, a duplicate finder, update notices for spotDL and yt-dlp, and a configurable server port.
+**Features:** a searchable built-in user manual with screenshots, Spotify and YouTube Music links, Dropbox and Google Drive storage, never-overwrite uploads, saved playlists that re-check daily or weekly, a download queue, sync history, synced lyrics, `.m3u8` playlist files, an `Artist/Album` file layout, a duplicate finder, update notices for spotDL and yt-dlp, and a configurable server port.
 
 It is a React + Vite front end on top of [spotDL](https://github.com/spotDL/spotify-downloader), driven by a small FastAPI server that runs the `spotdl` command, parses its progress, and streams it to the browser.
 
@@ -152,6 +152,10 @@ Open **http://localhost:5173**, paste a Spotify link, choose a format and qualit
 
 The page checks the API every few seconds. If the API stops, the UI shows an "API offline" banner, asks the dev server to restart it automatically, and recovers on its own. There is also a **Start server** button in the banner. Links copied from Spotify's Share menu (with `?si=...` tracking) are cleaned up automatically.
 
+### Built-in user manual
+
+Click **Help** at the top right of the app to open the full user manual: a step-by-step guide with screenshots, from installing to saving your first playlist, connecting Dropbox or Google Drive and keeping playlists in sync. It is searchable and organised by section. The text lives in `web/src/manual/content.ts` and the screenshots in `web/public/manual/`.
+
 ### Desktop shortcut (macOS and Linux)
 
 To start the app without a terminal, create a Desktop icon once:
@@ -287,7 +291,8 @@ Dropbox and Google Drive then appear as connected demo accounts backed by folder
 ### Tests
 
 ```bash
-cd server && python3 -m unittest discover tests
+cd server && python3 -m unittest discover tests   # API
+cd web && npm test                                # manual search and content checks
 ```
 
 ---
@@ -347,7 +352,8 @@ Useful options: `--format mp3|m4a|flac|opus|ogg|wav`, `--bitrate 192k`, `--threa
         ├── api.ts           Typed API client
         ├── ui.tsx           Modal, toasts, switch, segmented control
         ├── icons.tsx        Icons and provider marks
-        ├── components/      Composer, JobCard, SettingsDialog (+ Playlists, Library, Advanced panels), UpdateBanner, FolderPicker
+        ├── components/      Composer, JobCard, SettingsDialog (+ Playlists, Library, Advanced panels), UpdateBanner, FolderPicker, HelpDialog
+        ├── manual/          User manual text, search and its tests
         └── styles.css       Design tokens, light and dark themes
 ```
 

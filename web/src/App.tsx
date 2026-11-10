@@ -17,6 +17,7 @@ import {
 import { Composer } from "./components/Composer";
 import { JobCard } from "./components/JobCard";
 import { SettingsDialog, type SettingsTab } from "./components/SettingsDialog";
+import { HelpDialog } from "./components/HelpDialog";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { Brand, Icon, LABELS } from "./icons";
 import { ToastProvider, useToast } from "./ui";
@@ -36,6 +37,8 @@ function Shell() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [api, setApi] = useState<"checking" | "online" | "offline">("checking");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpSection, setHelpSection] = useState<string | undefined>();
   const [tab, setTab] = useState<SettingsTab>("connections");
   const [focus, setFocus] = useState<CloudKey | undefined>();
   const watchers = useRef(new Map<string, () => void>());
@@ -162,6 +165,10 @@ function Shell() {
                 <i className={`dot ${p.connected ? "ok" : ""}`} />
               </button>
             ))}
+            <button type="button" className="pill link help-link" onClick={() => { setHelpSection(undefined); setHelpOpen(true); }} title="Open the user manual">
+              <Icon name="help" />
+              <span className="pill-text">Help</span>
+            </button>
             <button type="button" className="icon-btn" onClick={() => openSettings("defaults")} aria-label="Settings" title="Settings">
               <Icon name="gear" />
             </button>
@@ -266,6 +273,8 @@ function Shell() {
           </p>
         </footer>
       </div>
+
+      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} section={helpSection} />
 
       {payload && (
         <SettingsDialog

@@ -46,6 +46,10 @@ jobs:
       - name: Install dependencies
         working-directory: web
         run: npm ci
+      - name: Manual search tests
+        working-directory: web
+        run: npm test
+
       - name: Type-check and build
         working-directory: web
         run: npm run build
