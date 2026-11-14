@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CloudKey, Job, ProviderStatus } from "../api";
+import type { CloudKey, Job, ProviderStatus, Track } from "../api";
 import { Brand, Icon, type IconName } from "../icons";
 import { tilde } from "../ui";
 
@@ -8,6 +8,7 @@ interface Props {
   providers: ProviderStatus[];
   onCancel: (job: Job) => void;
   onCopy: (job: Job, key: CloudKey) => void;
+  onRetry: (job: Job, track: Track) => void;
 }
 
 const STATUS_LABEL: Record<Job["status"], string> = {
@@ -25,7 +26,7 @@ function splitTitle(full: string): [string, string] {
   return i > 0 ? [full.slice(0, i), full.slice(i + 3)] : ["", full];
 }
 
-export function JobCard({ job, providers, onCancel, onCopy }: Props) {
+export function JobCard({ job, providers, onCancel, onCopy, onRetry }: Props) {
   const [tab, setTab] = useState<"tracks" | "cloud" | "log">("tracks");
   const toCloud = job.destination !== "local";
   const queued = job.status === "queued";
@@ -145,8 +146,9 @@ export function JobCard({ job, providers, onCancel, onCopy }: Props) {
         <div className="notice warn">
           <Icon name="alert" />
           <span>
-            Some tracks failed to download. Often fixed by running <code>spotdl --download-deno</code>, then downloading
-            this link again. Saved tracks are skipped.
+            Some tracks failed to download. Press <b>Retry</b> next to a track to try it again. If many keep failing,
+            update spotDL (see the banner above) or run <code>spotdl --download-deno</code>, then download this link
+            again. Saved tracks are skipped.
           </span>
         </div>
       )}
@@ -176,10 +178,27 @@ export function JobCard({ job, providers, onCancel, onCopy }: Props) {
                 <span className="meta">
                   <span className="t">{title}</span>
                   {artist && <span className="a">{artist}</span>}
+                  {t.state === "failed" && t.detail && <span className="a why" title={t.detail}>{t.detail}</span>}
                 </span>
                 <span className={`state ${t.state}`}>
                   {t.state === "done" ? "Downloaded" : t.state === "skipped" ? (toCloud && !job.keep_local ? `In ${job.destination_label}` : "Already saved") : "Failed"}
                 </span>
+                {t.state === "failed" &&
+                  (t.url ? (
+                    <button
+                      type="button"
+                      className="btn ghost small retry"
+                      disabled={t.retry === "running" || active}
+                      onClick={() => onRetry(job, t)}
+                      aria-label={`Retry ${t.title}`}
+                    >
+                      <Icon name="refresh" /> {t.retry === "running" ? "Retrying…" : t.retry === "failed" ? "Retry again" : "Retry"}
+                    </button>
+                  ) : (
+                    <span className="a" title="Retrying a single track becomes possible once the whole download has finished">
+                      {active ? "Retry is available when the download finishes" : "Run the link again to retry"}
+                    </span>
+                  ))}
               </li>
             );
           })}

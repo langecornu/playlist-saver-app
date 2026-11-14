@@ -452,3 +452,6 @@ dialog.modal.huge .modal-card { max-height: min(92vh, 900px); }
 }
 
 .help-search input::-webkit-search-cancel-button, .help-search input::-webkit-search-decoration { display: none; -webkit-appearance: none; }
+
+.tracks li .retry { margin-left: 4px; flex: none; }
+.tracks .meta .why { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--red, #c24); }

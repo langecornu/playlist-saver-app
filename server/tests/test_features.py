@@ -423,3 +423,162 @@ class UpgradeCommand(unittest.TestCase):
         parts = shlex.split(versions.upgrade_command())
         self.assertEqual(parts[0], sys.executable)
         self.assertEqual(parts[1:], ["-m", "pip", "install", "--upgrade", "spotdl", "yt-dlp"])
+
+
+FAKE_FAILING_SPOTDL = textwrap.dedent(
+    """
+    import json, sys
+    a = sys.argv[1:]
+    if a and a[0] == "save":
+        urls = [x for x in a[1:] if x.startswith("http")]
+        out = a[a.index("--save-file") + 1]
+        json.dump([{"name": "Midnight Train", "artists": ["Nora Vale"], "url": u} for u in urls], open(out, "w"))
+        sys.exit(0)
+    print("Found 2 songs in Fake List (Playlist)", flush=True)
+    print("A - One: Downloaded", flush=True)
+    print("AudioProviderError: YT-DLP download error - https://music.youtube.com/watch?v=x", flush=True)
+    print("2/2 complete", flush=True)
+    print("https://open.spotify.com/track/AAA111 - AudioProviderError: YT-DLP download error - https://music.youtube.com/watch?v=x", flush=True)
+    """
+)
+
+FAKE_RETRY_SPOTDL = textwrap.dedent(
+    """
+    import os, sys
+    a = sys.argv[1:]
+    out = a[a.index("--output") + 1]
+    path = out.replace("{artists}", "Nora Vale").replace("{title}", "Midnight Train").replace("{output-ext}", "mp3")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "wb").write(b"x")
+    print('Downloaded "Nora Vale - Midnight Train": https://music.youtube.com/watch?v=x', flush=True)
+    """
+)
+
+
+FAKE_STILL_FAILING_SPOTDL = textwrap.dedent(
+    """
+    print("AudioProviderError: YT-DLP download error - https://music.youtube.com/watch?v=x", flush=True)
+    print("https://open.spotify.com/track/AAA111 - AudioProviderError: YT-DLP download error - https://music.youtube.com/watch?v=x", flush=True)
+    """
+)
+
+
+class FailedTracks(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        os.environ["PLAYLIST_SAVER_HOME"] = tempfile.mkdtemp()
+        os.environ["PLAYLIST_SAVER_MOCK_CLOUD"] = tempfile.mkdtemp()
+        import config as config_mod
+
+        importlib.reload(config_mod)
+        import main as main_mod
+
+        cls.m = importlib.reload(main_mod)
+        d = Path(tempfile.mkdtemp())
+        cls.failing, cls.retry, cls.still = d / "failing.py", d / "retry.py", d / "still.py"
+        cls.still.write_text(FAKE_STILL_FAILING_SPOTDL)
+        cls.failing.write_text(FAKE_FAILING_SPOTDL)
+        cls.retry.write_text(FAKE_RETRY_SPOTDL)
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.pop("PLAYLIST_SAVER_MOCK_CLOUD", None)
+        os.environ.pop("PLAYLIST_SAVER_HOME", None)
+
+    def setUp(self):
+        self.m.jobs.clear()
+        self.m.slots = self.m.Slots()
+        self.out = tempfile.mkdtemp()
+
+    async def wait_until(self, cond, timeout=15):
+        for _ in range(int(timeout / 0.05)):
+            if cond():
+                return
+            await asyncio.sleep(0.05)
+        self.fail("timed out")
+
+    def plan(self, **kw):
+        return self.m.resolve_plan(
+            self.m.JobRequest(url="https://open.spotify.com/playlist/abc", output_dir=self.out, destination="local", **kw)
+        )
+
+    def test_a_failed_track_gets_its_link_and_its_name(self):
+        m = self.m
+        m.SPOTDL = [sys.executable, str(self.failing)]
+
+        async def go():
+            job = m.Job(self.plan())
+            m.jobs[job.id] = job
+            asyncio.create_task(job.run())
+            await self.wait_until(lambda: job.status in ("done", "failed"))
+            failed = [t for t in job.tracks if t["state"] == "failed"]
+            self.assertEqual(len(failed), 1)  # the end-of-run list must not count it a second time
+            self.assertEqual(failed[0]["url"], "https://open.spotify.com/track/AAA111")
+            self.assertEqual(failed[0]["title"], "Nora Vale - Midnight Train")
+
+        asyncio.run(go())
+
+    def test_no_results_message_already_names_the_song(self):
+        m = self.m
+
+        async def go():
+            job = m.Job(self.plan())
+            await job.handle_line("LookupError: No results found for song: Kei Arai - Slow Summer")
+            self.assertEqual(job.tracks[0]["title"], "Kei Arai - Slow Summer")
+
+        asyncio.run(go())
+
+    def test_retry_saves_one_track_into_the_playlists_folder(self):
+        m = self.m
+        m.SPOTDL = [sys.executable, str(self.failing)]
+
+        async def go():
+            job = m.Job(self.plan())
+            m.jobs[job.id] = job
+            asyncio.create_task(job.run())
+            await self.wait_until(lambda: job.status in ("done", "failed"))
+            m.SPOTDL = [sys.executable, str(self.retry)]
+            track = next(t for t in job.tracks if t["state"] == "failed")
+            snap = await m.retry_track(job.id, m.RetryRequest(url=track["url"]))
+            self.assertEqual(track["retry"], "running")
+            await self.wait_until(lambda: track["state"] == "done")
+            self.assertNotIn("retry", track)
+            self.assertTrue((Path(self.out) / "Fake List" / "Nora Vale - Midnight Train.mp3").exists())
+            self.assertFalse(m.jobs[snap["id"]].plan.is_list)
+
+        asyncio.run(go())
+
+    def test_retry_refuses_unknown_tracks_and_unfinished_jobs(self):
+        m = self.m
+
+        async def go():
+            job = m.Job(self.plan())
+            m.jobs[job.id] = job
+            with self.assertRaises(m.HTTPException) as busy:  # still queued
+                await m.retry_track(job.id, m.RetryRequest(url="https://open.spotify.com/track/ZZZ"))
+            self.assertEqual(busy.exception.status_code, 409)
+            job.status = "done"
+            with self.assertRaises(m.HTTPException) as missing:
+                await m.retry_track(job.id, m.RetryRequest(url="https://open.spotify.com/track/ZZZ"))
+            self.assertEqual(missing.exception.status_code, 404)
+
+        asyncio.run(go())
+
+    def test_a_failing_retry_stays_retryable(self):
+        m = self.m
+        m.SPOTDL = [sys.executable, str(self.failing)]
+
+        async def go():
+            job = m.Job(self.plan())
+            m.jobs[job.id] = job
+            asyncio.create_task(job.run())
+            await self.wait_until(lambda: job.status in ("done", "failed"))
+            track = next(t for t in job.tracks if t["state"] == "failed")
+            m.SPOTDL = [sys.executable, str(self.still)]
+            await m.retry_track(job.id, m.RetryRequest(url=track["url"]))  # the stand-in fails again
+            await self.wait_until(lambda: track.get("retry") == "failed")
+            self.assertEqual(track["state"], "failed")
+            await m.retry_track(job.id, m.RetryRequest(url=track["url"]))  # and can be tried once more
+            await self.wait_until(lambda: track.get("retry") == "failed")
+
+        asyncio.run(go())
