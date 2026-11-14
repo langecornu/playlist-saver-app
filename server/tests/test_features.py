@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -135,6 +136,8 @@ class Engine(unittest.TestCase):
         self.m = self.main
         self.m.SPOTDL = [sys.executable, str(self.script)]
         self.m.jobs.clear()
+        for pl in self.m.store.playlists():  # tests share one store; start each from a clean slate
+            self.m.store.delete_playlist(pl["id"])
         self.m.slots = self.m.Slots()  # an asyncio.Condition belongs to one event loop; each test makes its own
         self.out = tempfile.mkdtemp()
 
@@ -234,6 +237,24 @@ class Engine(unittest.TestCase):
 
         asyncio.run(go())
 
+    def test_failed_checks_are_retried_in_an_hour_but_cancelled_ones_are_not(self):
+        m = self.m
+
+        async def go():
+            for status in ("failed", "cancelled", "done"):
+                url = f"https://open.spotify.com/playlist/retry{status}"
+                pl = m.store.save_playlist({"url": url, "interval": "daily", "last_run": 0, "request": {}})
+                job = m.Job(m.resolve_plan(self.req(url=url)), "auto")
+                job.status = status
+                job.record_history()
+                got = m.store.get_playlist(pl["id"])
+                if status == "failed":
+                    self.assertAlmostEqual(m.playlist_view(got)["next_run"] - time.time(), m.RETRY_AFTER, delta=5)
+                else:
+                    self.assertEqual(got["last_run"], 0)  # untouched: the normal schedule applies
+
+        asyncio.run(go())
+
     def test_auto_sync_with_disconnected_service_is_recorded_not_crashed(self):
         m = self.m
 
@@ -246,6 +267,8 @@ class Engine(unittest.TestCase):
             h = m.store.history(pl["url"], 1)[0]
             self.assertEqual(h["status"], "failed")
             self.assertIn("isn't connected", h["detail"])
+            nxt = m.playlist_view(m.store.get_playlist(pl["id"]))["next_run"]
+            self.assertAlmostEqual(nxt - time.time(), m.RETRY_AFTER, delta=5)  # retried soon, not tomorrow
 
         asyncio.run(go())
 
@@ -388,3 +411,15 @@ class PortSetting(unittest.TestCase):
             asyncio.run(self.m.restart_api())
         self.assertEqual(ctx.exception.status_code, 400)
 
+
+
+class UpgradeCommand(unittest.TestCase):
+    def test_upgrades_the_python_the_server_runs_on(self):
+        import shlex
+        import sys
+
+        import versions
+
+        parts = shlex.split(versions.upgrade_command())
+        self.assertEqual(parts[0], sys.executable)
+        self.assertEqual(parts[1:], ["-m", "pip", "install", "--upgrade", "spotdl", "yt-dlp"])

@@ -51,6 +51,19 @@ function forwardApi(req: http.IncomingMessage, res: http.ServerResponse) {
   req.pipe(upstream);
 }
 
+// The interpreter for the API: PYTHON if set, else the project's own .venv (what the install guide
+// creates, and the only place spotDL lives on a Homebrew Python), else whatever python3 is on PATH.
+// Checking for the folder means nobody has to "activate" anything, so the Desktop shortcut works too.
+function pythonCommand(): string {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const root = path.resolve(serverDir, "..");
+  for (const rel of [".venv/bin/python", ".venv/Scripts/python.exe"]) {
+    const candidate = path.join(root, rel);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return "python3";
+}
+
 // Starts the FastAPI server alongside `npm run dev`, and lets the UI restart it
 // (POST /__api/start) if it ever goes down. Set PYTHON to use a specific interpreter.
 function apiLauncher(): Plugin {
@@ -67,7 +80,7 @@ function apiLauncher(): Plugin {
       child.kill("SIGKILL");
     }
     apiPort = configuredPort(); // pick up a port changed in Settings
-    const proc = spawn(process.env.PYTHON ?? "python3", ["-m", "uvicorn", "main:app", "--port", String(apiPort)], {
+    const proc = spawn(pythonCommand(), ["-m", "uvicorn", "main:app", "--port", String(apiPort)], {
       cwd: serverDir,
       stdio: "inherit",
       env: { ...process.env, PLAYLIST_SAVER_API_PORT: String(apiPort), PLAYLIST_SAVER_MANAGED: "1" },
