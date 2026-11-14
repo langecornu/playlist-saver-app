@@ -122,7 +122,7 @@ scripts/install-shortcut.sh
 
 Double-clicking **Playlist Saver** on your Desktop then starts the app if it isn't running, waits until it is ready, and opens it in your browser. If it is already running it just opens the page. The first launch installs the front-end packages for you.
 
-- On macOS the shortcut is a small app bundle created on your machine, so there is no "unidentified developer" warning. It uses your login shell so it finds Node.js and Python the same way Terminal does.
+- On macOS the shortcut is a small app bundle created on your machine, so there is no "unidentified developer" warning. It carries the app logo as its icon; if Finder still shows a plain icon, move or relaunch Finder (`killall Finder`). It uses your login shell so it finds Node.js and Python the same way Terminal does.
 - On Linux it is a `.desktop` file; your desktop may ask you to choose **Allow Launching** the first time.
 - Stop the app with `scripts/launch.sh stop`. Logs are in `~/.config/playlist-saver/launcher.log`.
 - Remove the shortcut with `scripts/install-shortcut.sh --remove`.
@@ -302,6 +302,7 @@ Useful options: `--format mp3|m4a|flac|opus|ogg|wav`, `--bitrate 192k`, `--threa
 ├── docs/
 │   └── USER_GUIDE.md        Illustrated user guide (generated from the in-app manual)
 ├── scripts/
+│   ├── assets/              App icon: icon-1024.png (source), icon-512.png, AppIcon.icns
 │   ├── launch.sh            Start the app if needed and open it in the browser
 │   └── install-shortcut.sh  Create or remove the Desktop shortcut
 └── web/
