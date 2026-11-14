@@ -235,7 +235,7 @@ ls
 ```
 
 > [!TIP]
-> If you use Git, you can run `git clone https://github.com/langecornu2027/playlist-saver-app.git` and `cd playlist-saver-app` instead. The Mac may then offer to install the command line developer tools; click Install.
+> If you use Git, you can run `git clone https://github.com/langecornu/playlist-saver-app.git` and `cd playlist-saver-app` instead. The Mac may then offer to install the command line developer tools; click Install.
 
 > [!IMPORTANT]
 > Every command in the next steps must be run **from this folder**. If you open a new Terminal window later, repeat steps 4 to 6 above first.

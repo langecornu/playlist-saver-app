@@ -72,7 +72,7 @@ Tested on macOS (Intel). It should work on Linux and Windows too, but the comman
 brew install python node ffmpeg
 
 # 2. Get the code
-git clone https://github.com/langecornu2027/playlist-saver-app.git
+git clone https://github.com/langecornu/playlist-saver-app.git
 cd playlist-saver-app
 
 # 3. spotDL and the API server, in a private virtual environment (no activation needed: the app finds .venv by itself)
