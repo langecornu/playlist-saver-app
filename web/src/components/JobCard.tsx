@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CloudKey, Job, ProviderStatus, Track } from "../api";
+import { formatDuration } from "../format";
 import { Brand, Icon, type IconName } from "../icons";
 import { tilde } from "../ui";
 
@@ -9,6 +10,7 @@ interface Props {
   onCancel: (job: Job) => void;
   onCopy: (job: Job, key: CloudKey) => void;
   onRetry: (job: Job, track: Track) => void;
+  onDismiss: (job: Job) => void;
 }
 
 const STATUS_LABEL: Record<Job["status"], string> = {
@@ -26,13 +28,31 @@ function splitTitle(full: string): [string, string] {
   return i > 0 ? [full.slice(0, i), full.slice(i + 3)] : ["", full];
 }
 
-export function JobCard({ job, providers, onCancel, onCopy, onRetry }: Props) {
+/** Re-renders every second while `on`, so a running timer keeps counting. */
+function useNow(on: boolean): number {
+  const [now, setNow] = useState(() => Date.now() / 1000);
+  useEffect(() => {
+    if (!on) return;
+    setNow(Date.now() / 1000);
+    const t = setInterval(() => setNow(Date.now() / 1000), 1000);
+    return () => clearInterval(t);
+  }, [on]);
+  return now;
+}
+
+/** spotDL says nothing while it waits for Spotify to answer; after this long we tell the user. */
+const QUIET_AFTER = 90;
+
+export function JobCard({ job, providers, onCancel, onCopy, onRetry, onDismiss }: Props) {
   const [tab, setTab] = useState<"tracks" | "cloud" | "log">("tracks");
   const toCloud = job.destination !== "local";
   const queued = job.status === "queued";
   const active = queued || job.status === "starting" || job.status === "running" || job.status === "uploading";
   const finished = !active;
   const syncing = job.cloud_state === "syncing";
+  const now = useNow(active || syncing);
+  const elapsed = job.started_at ? (job.finished_at ?? now) - job.started_at : 0;
+  const quietFor = job.status === "running" || job.status === "starting" ? now - job.last_activity : 0;
 
   const saved = job.tracks.filter((t) => t.state === "done").length;
   const skipped = job.tracks.filter((t) => t.state === "skipped").length;
@@ -87,12 +107,35 @@ export function JobCard({ job, providers, onCancel, onCopy, onRetry }: Props) {
           {active && <i />} {STATUS_LABEL[job.status]}
           {queued && job.queue_position > 0 ? ` · #${job.queue_position}` : ""}
         </span>
+        {job.started_at && (
+          <span className="chip time" title={finished ? "How long this download took" : "How long this download has been running"}>
+            <Icon name="clock" /> {finished && !syncing ? `Took ${formatDuration(elapsed)}` : formatDuration(elapsed)}
+          </span>
+        )}
         {(active || syncing) && (
           <button type="button" className="btn ghost small" onClick={() => onCancel(job)}>
             <Icon name="x" /> Cancel
           </button>
         )}
+        {finished && !syncing && !job.tracks.some((t) => t.retry === "running") && (
+          <button type="button" className="icon-btn dismiss" onClick={() => onDismiss(job)} aria-label="Remove from the list" title="Remove from the list (your files are not touched)">
+            <Icon name="x" />
+          </button>
+        )}
       </div>
+
+      {quietFor > QUIET_AFTER && (
+        <div className="notice warn">
+          <Icon name="alert" />
+          <span>
+            Nothing new from spotDL for {formatDuration(quietFor)}.{" "}
+            {job.total
+              ? "It is probably waiting on YouTube or Spotify, which slow requests down when they get many at once."
+              : "Spotify may be limiting requests: it makes spotDL wait before it can read the playlist, and that can take several minutes."}{" "}
+            It usually carries on by itself. If it doesn’t, press Cancel and try again later.
+          </span>
+        </div>
+      )}
 
       {queued && (
         <p className="note">

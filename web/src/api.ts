@@ -50,6 +50,11 @@ export interface Job {
   naming: Naming;
   lrc: boolean;
   m3u: boolean;
+  /** Epoch seconds. started_at is null while queued, finished_at until the job ends. */
+  created_at: number;
+  started_at: number | null;
+  finished_at: number | null;
+  last_activity: number;
 }
 
 export type Naming = "flat" | "artist_album";
@@ -192,6 +197,7 @@ export const listJobs = () => call<Job[]>("/api/jobs");
 export const createJob = (req: JobRequest) => call<Job>("/api/jobs", json("POST", req));
 export const retryTrack = (id: string, url: string) =>
   call<Job>(`/api/jobs/${id}/retry`, json("POST", { url }));
+export const removeJob = (id: string) => call<{ removed: string }>(`/api/jobs/${id}`, { method: "DELETE" });
 export const cancelJob = (id: string) => call<Job>(`/api/jobs/${id}/cancel`, { method: "POST" });
 export const copyJob = (id: string, provider: CloudKey, cloud_dest?: Dest) =>
   call<Job>(`/api/jobs/${id}/copy`, json("POST", { provider, cloud_dest }));
@@ -213,7 +219,7 @@ export const listFolders = (key: CloudKey, at?: Dest) => {
 export const createFolder = (key: CloudKey, parent: Dest, name: string) =>
   call<Folder>(`/api/providers/${key}/folders`, json("POST", { parent, name }));
 
-export function watchJob(id: string, onUpdate: (j: Job) => void): () => void {
+export function watchJob(id: string, onUpdate: (j: Job) => void, onLost?: () => void): () => void {
   const es = new EventSource(`/api/jobs/${id}/events`);
   es.onmessage = (e) => {
     const job: Job = JSON.parse(e.data);
@@ -222,7 +228,10 @@ export function watchJob(id: string, onUpdate: (j: Job) => void): () => void {
     const retrying = job.tracks.some((t) => t.retry === "running");
     if (finished && job.cloud_state !== "syncing" && !retrying) es.close();
   };
-  es.onerror = () => es.close();
+  es.onerror = () => {
+    es.close();
+    onLost?.();
+  };
   return () => es.close();
 }
 

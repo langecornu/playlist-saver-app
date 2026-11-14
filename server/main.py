@@ -288,6 +288,8 @@ class Job:
         self.staging: Path | None = None
         self.syncer: CloudSyncer | None = None
         self.started_at = time.time()
+        self.finished_at: float | None = None
+        self.last_activity = time.time()  # last time spotdl printed anything, to spot a stalled lookup
         self.cancelled = False
         self.spotdl_done = False
         self.version = 0
@@ -339,6 +341,10 @@ class Job:
             "naming": p.naming,
             "lrc": p.lrc,
             "m3u": p.m3u,
+            "created_at": self.created,
+            "started_at": None if self.status == "queued" else self.started_at,
+            "finished_at": self.finished_at,
+            "last_activity": self.last_activity,
         }
 
     def queue_position(self) -> int:
@@ -364,6 +370,7 @@ class Job:
         line = line.rstrip()
         if not line:
             return
+        self.last_activity = time.time()
         self.log.append(line)
         if m := FOUND_RE.search(line):
             self.total = int(m.group(1))
@@ -443,6 +450,7 @@ class Job:
         try:
             if not got:
                 self.status = "cancelled"
+                self.finished_at = time.time()
                 await self.touch()
                 return
             self.started_at = time.time()  # waiting in the queue must not count against the "new files" window
@@ -612,6 +620,7 @@ class Job:
             self.log.append(f"{type(e).__name__}: {e}")
         finally:
             self.cleanup_staging()
+            self.finished_at = time.time()
             await self.touch()
 
     async def sync_loop(self):
@@ -790,6 +799,18 @@ async def cancel_job(job_id: str):
         raise HTTPException(404)
     job.cancel()
     return job.snapshot()
+
+
+@app.delete("/api/jobs/{job_id}")
+async def remove_job(job_id: str):
+    """Forget a finished job (the files are untouched), so the Activity list can be tidied."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(404)
+    if job.status in ACTIVE or job.cloud_state == "syncing" or job.retrying():
+        raise HTTPException(409, "This download is still in progress. Cancel it first.")
+    jobs.pop(job_id, None)
+    return {"removed": job_id}
 
 
 class RetryRequest(BaseModel):
