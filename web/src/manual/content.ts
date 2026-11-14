@@ -167,7 +167,7 @@ export const MANUAL: Section[] = [
       ] },
       { t: "p", text: "Check that you are in the right place. This lists the folder’s contents; you should see `server`, `web` and `README.md`:" },
       { t: "code", text: "ls" },
-      { t: "tip", text: "If you use Git, you can run `git clone https://github.com/langecornu2027/playlist-saver-app.git` and `cd playlist-saver-app` instead. The Mac may then offer to install the command line developer tools; click Install." },
+      { t: "tip", text: "If you use Git, you can run `git clone https://github.com/langecornu/playlist-saver-app.git` and `cd playlist-saver-app` instead. The Mac may then offer to install the command line developer tools; click Install." },
       { t: "warn", text: "Every command in the next steps must be run **from this folder**. If you open a new Terminal window later, repeat steps 4 to 6 above first." },
     ],
   },
