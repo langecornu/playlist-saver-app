@@ -3,9 +3,10 @@ import type { CloudKey, Destination } from "./api";
 export type IconName =
   | "link" | "folder" | "download" | "upload" | "check" | "skip" | "alert" | "x" | "wave" | "paste" | "log"
   | "search" | "disc" | "bolt" | "gear" | "plus" | "chevron" | "star" | "star-fill" | "cloud" | "laptop" | "copy"
-  | "lock" | "arrow" | "home" | "refresh" | "external" | "sparkle" | "help" | "book";
+  | "lock" | "arrow" | "home" | "refresh" | "external" | "sparkle" | "help" | "book" | "clock";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   help: <><circle cx="12" cy="12" r="9" /><path d="M9.6 9.5a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6" /><path d="M12 17h.01" /></>,
   book: <><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" /><path d="M5 17a3 3 0 0 1 3-3h10" /></>,
   link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>,

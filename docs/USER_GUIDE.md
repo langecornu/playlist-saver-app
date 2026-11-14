@@ -427,7 +427,11 @@ Each download gets a card in the **Activity** list on the right, with a live pro
 
 <sub>A finished download. Use the **Tracks** tab for each song and **Log** for technical details.</sub>
 
+A small **clock** on each card shows how long the download has been running, and **Took 4:12** once it has finished. A card’s **✕** at the top right removes it from the list when you no longer need it (your files are not touched), and **Clear finished** removes all finished ones at once.
+
 You can cancel a running download at any time. If several are waiting, a queued one can be cancelled before it starts.
+
+If the card says **Looking up playlist…** for a long time, Spotify is probably limiting requests and making spotDL wait. After about a minute and a half of silence the app tells you so. It usually carries on by itself; if it doesn’t, press **Cancel** and try again later.
 
 > [!TIP]
 > Closing the browser tab does not stop a download. The work happens on your computer, so reopen the page to see where it got to.

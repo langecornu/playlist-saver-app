@@ -455,3 +455,8 @@ dialog.modal.huge .modal-card { max-height: min(92vh, 900px); }
 
 .tracks li .retry { margin-left: 4px; flex: none; }
 .tracks .meta .why { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--red, #c24); }
+
+.chip.time { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.chip.time svg { width: 13px; height: 13px; }
+.job-top .dismiss { flex: none; align-self: flex-start; }
+.activity-head .clear-finished { margin-left: auto; }

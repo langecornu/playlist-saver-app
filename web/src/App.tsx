@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelJob,
+  removeJob,
   retryTrack,
   type Track,
   copyJob,
@@ -54,7 +55,35 @@ function Shell() {
   const watch = useCallback(
     (id: string) => {
       watchers.current.get(id)?.();
-      watchers.current.set(id, watchJob(id, upsert));
+      watchers.current.set(
+        id,
+        watchJob(id, upsert, () => {
+          // The live stream dropped (the helper restarted, say). Ask what became of the job instead of
+          // leaving its card on "Downloading" for ever.
+          listJobs()
+            .then((now) => {
+              const found = now.find((j) => j.id === id);
+              if (found) {
+                upsert(found);
+                if (!["done", "failed", "cancelled"].includes(found.status)) setTimeout(() => watch(id), 2000);
+              } else {
+                setJobs((prev) =>
+                  prev.map((j) =>
+                    j.id === id && !["done", "failed", "cancelled"].includes(j.status)
+                      ? {
+                          ...j,
+                          status: "failed",
+                          finished_at: Date.now() / 1000,
+                          warnings: [...j.warnings, "This download was interrupted because the app restarted. Saved tracks are kept. Run the link again to continue where it stopped."],
+                        }
+                      : j,
+                  ),
+                );
+              }
+            })
+            .catch(() => setTimeout(() => watch(id), 3000)); // the helper is still coming back
+        }),
+      );
     },
     [upsert],
   );
@@ -131,6 +160,21 @@ function Shell() {
     watch(job.id);
   }
 
+  async function dismiss(job: Job) {
+    try {
+      await removeJob(job.id);
+    } catch (e) {
+      // A card the server no longer knows (after a restart) can simply go; anything else stays and says why.
+      if (!(e instanceof Error && /not found/i.test(e.message))) {
+        toast(e instanceof Error ? e.message : "Couldn't remove this download", "error");
+        return;
+      }
+    }
+    watchers.current.get(job.id)?.();
+    watchers.current.delete(job.id);
+    setJobs((prev) => prev.filter((j) => j.id !== job.id));
+  }
+
   async function retry(job: Job, track: Track) {
     if (!track.url) return;
     try {
@@ -152,6 +196,9 @@ function Shell() {
     }
   }
 
+  const finishedJobs = jobs.filter(
+    (j) => ["done", "failed", "cancelled"].includes(j.status) && j.cloud_state !== "syncing" && !j.tracks.some((t) => t.retry === "running"),
+  );
   const waiting = jobs.filter((j) => j.status === "queued").length;
   const active = jobs.filter((j) => ["starting", "running", "uploading"].includes(j.status) || (j.status !== "queued" && j.cloud_state === "syncing")).length;
 
@@ -246,6 +293,11 @@ function Shell() {
             <div className="activity-head">
               <h2>Activity</h2>
               {jobs.length > 0 && <span className="count">{jobs.length}</span>}
+              {finishedJobs.length > 1 && (
+                <button type="button" className="btn ghost small clear-finished" onClick={() => finishedJobs.forEach((j) => dismiss(j))}>
+                  Clear finished
+                </button>
+              )}
             </div>
             {jobs.length === 0 ? (
               <EmptyState />
@@ -259,6 +311,7 @@ function Shell() {
                     onCancel={(job) => cancelJob(job.id).catch(() => {})}
                     onCopy={copy}
                     onRetry={retry}
+                    onDismiss={dismiss}
                   />
                 ))}
               </div>

@@ -14,6 +14,8 @@ First public release.
 
 ## Unreleased
 
+- Each download card shows a running timer, and how long it took once finished. Finished cards have an ✕ to remove them (and Activity has Clear finished), so old ones no longer pile up.
+- A download that goes quiet for 90 seconds now says so and why (usually Spotify or YouTube rate-limiting), instead of looking frozen. If the connection to the helper drops, the card is updated or marked interrupted instead of staying on Downloading.
 - A track that fails to download is now listed by name with the reason and a **Retry** button that fetches just that track into the playlist's own folder (or cloud folder). The row turns to Downloaded when the retry succeeds.
 - Beginner-friendly install guide: explains Terminal and Homebrew, with screenshots and a fix for every common error. The same guide is published as `docs/USER_GUIDE.md` and linked from the README, so it is readable on GitHub with all screenshots.
 - The app now uses the project's `.venv` Python automatically, so it works from the Desktop shortcut and on Homebrew Python without activating anything. The update banner's command upgrades the Python the app actually runs on.

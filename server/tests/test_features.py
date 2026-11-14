@@ -582,3 +582,55 @@ class FailedTracks(unittest.TestCase):
             await self.wait_until(lambda: track.get("retry") == "failed")
 
         asyncio.run(go())
+
+
+class JobTimingAndRemoval(FailedTracks):
+    """Reuses the stand-in spotdl helpers of FailedTracks."""
+
+    def test_snapshots_carry_start_finish_and_last_activity(self):
+        m = self.m
+        m.SPOTDL = [sys.executable, str(self.failing)]
+
+        async def go():
+            job = m.Job(self.plan())
+            self.assertIsNone(job.snapshot()["started_at"])  # still queued
+            m.jobs[job.id] = job
+            asyncio.create_task(job.run())
+            await self.wait_until(lambda: job.status in ("done", "failed"))
+            snap = job.snapshot()
+            self.assertIsNotNone(snap["started_at"])
+            self.assertGreaterEqual(snap["finished_at"], snap["started_at"])
+            self.assertGreaterEqual(snap["last_activity"], snap["started_at"])
+
+        asyncio.run(go())
+
+    def test_a_finished_job_can_be_removed_but_a_running_one_cannot(self):
+        m = self.m
+
+        async def go():
+            job = m.Job(self.plan())
+            m.jobs[job.id] = job
+            with self.assertRaises(m.HTTPException) as busy:  # queued counts as in progress
+                await m.remove_job(job.id)
+            self.assertEqual(busy.exception.status_code, 409)
+            job.status = "done"
+            self.assertEqual(await m.remove_job(job.id), {"removed": job.id})
+            self.assertNotIn(job.id, m.jobs)
+            with self.assertRaises(m.HTTPException) as gone:
+                await m.remove_job(job.id)
+            self.assertEqual(gone.exception.status_code, 404)
+
+        asyncio.run(go())
+
+    def test_a_job_with_a_retry_in_flight_cannot_be_removed(self):
+        m = self.m
+
+        async def go():
+            job = m.Job(self.plan())
+            job.status = "done"
+            job.tracks.append({"title": "x", "state": "failed", "detail": "", "url": "u", "retry": "running"})
+            m.jobs[job.id] = job
+            with self.assertRaises(m.HTTPException):
+                await m.remove_job(job.id)
+
+        asyncio.run(go())
