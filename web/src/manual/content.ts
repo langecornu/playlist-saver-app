@@ -314,7 +314,7 @@ export const MANUAL: Section[] = [
       { t: "list", items: [
         "**Saved**: new songs added now.",
         "**Already had**: songs that were already in the folder, so they were skipped.",
-        "**Failed**: songs that couldn’t be fetched. Press Download on the same link again to retry just those.",
+        "**Failed**: songs that couldn’t be fetched. Each one is listed by name with the reason, and a **Retry** button appears next to it once the download has finished. Retry fetches just that song into the same folder.",
         "**Remaining**: songs still to come.",
       ] },
       img("job-done", "A finished download", "A finished download. Use the **Tracks** tab for each song and **Log** for technical details."),

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelJob,
+  retryTrack,
+  type Track,
   copyJob,
   createJob,
   getDefaults,
@@ -93,7 +95,9 @@ function Shell() {
           listJobs().then((existing) => {
             if (!alive) return;
             setJobs([...existing].reverse());
-            existing.filter((j) => !["done", "failed", "cancelled"].includes(j.status) || j.cloud_state === "syncing").forEach((j) => watch(j.id));
+            existing
+              .filter((j) => !["done", "failed", "cancelled"].includes(j.status) || j.cloud_state === "syncing" || j.tracks.some((t) => t.retry === "running"))
+              .forEach((j) => watch(j.id));
           });
         }
       } else {
@@ -125,6 +129,18 @@ function Shell() {
     const job = await createJob(req);
     upsert(job);
     watch(job.id);
+  }
+
+  async function retry(job: Job, track: Track) {
+    if (!track.url) return;
+    try {
+      const started = await retryTrack(job.id, track.url);
+      upsert(started);
+      watch(started.id);
+      watch(job.id); // so the failed row flips to "Downloaded" when the retry finishes
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't retry this track", "error");
+    }
   }
 
   async function copy(job: Job, key: CloudKey) {
@@ -242,6 +258,7 @@ function Shell() {
                     providers={(payload?.providers ?? []).filter((p) => p.connected)}
                     onCancel={(job) => cancelJob(job.id).catch(() => {})}
                     onCopy={copy}
+                    onRetry={retry}
                   />
                 ))}
               </div>

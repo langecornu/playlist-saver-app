@@ -16,7 +16,7 @@ import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlencode, urlparse
@@ -75,6 +75,9 @@ SKIP_RE = re.compile(r"^(.+): Skipped\s*$")
 DONE2_RE = re.compile(r"^(.+): Downloaded\s*$")
 COMPLETE_RE = re.compile(r"^(\d+)/(\d+) complete")
 FAIL_RE = re.compile(r"(AudioProviderError|LookupError|DownloaderError)[:\s]*(.*)")
+# spotdl's end-of-run error list (--print-errors): "<track link> - <ErrorName>: <message>", in the order the failures happened
+ERROR_LINE_RE = re.compile(r"^(https?://\S+) - (\w+): (.*)$")
+NO_RESULTS_RE = re.compile(r"No results found for song:\s*(.+)$")
 
 
 def sanitize_folder(name: str) -> str:
@@ -205,6 +208,7 @@ class Plan:
     m3u: bool = False
     is_list: bool = True  # playlist or album, as opposed to a single track
     source: str = "spotify"
+    into_folder: str = ""  # a retry of one track: put it in this existing folder of the original job
 
     @property
     def nested(self) -> bool:
@@ -223,7 +227,7 @@ class Plan:
     @property
     def in_folder(self) -> bool:
         # Single tracks have no list name, and the library layout builds its own folders
-        return self.subfolder and self.is_list and not self.nested
+        return bool(self.into_folder) or (self.subfolder and self.is_list and not self.nested)
 
 
 class Slots:
@@ -269,7 +273,8 @@ class Job:
         self.created = time.time()
         self.status = "queued"  # queued | starting | running | uploading | done | failed | cancelled
         self.name = ""
-        self.folder = ""
+        self.folder = plan.into_folder
+        self.retry_of: tuple["Job", dict] | None = None  # (job, failed track) this job is retrying
         self.total = 0
         self.completed = 0
         self.tracks: list[dict] = []  # {title, state: done|skipped|failed, detail}
@@ -363,7 +368,7 @@ class Job:
         if m := FOUND_RE.search(line):
             self.total = int(m.group(1))
             self.name = m.group(2)
-            if self.plan.in_folder:
+            if self.plan.in_folder and not self.plan.into_folder:
                 self.set_folder(sanitize_folder(self.name))
         elif m := COMPLETE_RE.match(line):
             self.completed = int(m.group(1))
@@ -374,9 +379,49 @@ class Job:
         elif m := SKIP_RE.search(line):
             self.tracks.append({"title": m.group(1), "state": "skipped", "detail": ""})
             self.name_single(m.group(1))
+        elif m := ERROR_LINE_RE.match(line):
+            self.attach_error_link(m.group(1))
         elif m := FAIL_RE.search(line):
-            self.tracks.append({"title": "Failed track", "state": "failed", "detail": m.group(2).strip()})
+            detail = m.group(2).strip()
+            found = NO_RESULTS_RE.search(detail)
+            self.tracks.append({"title": found.group(1) if found else "Failed track", "state": "failed", "detail": detail, "url": ""})
         await self.touch()
+
+    def attach_error_link(self, url: str):
+        """spotdl lists failures again at the end, with each track's link, in the same order they happened."""
+        for t in self.tracks:
+            if t["state"] == "failed" and not t.get("url"):
+                t["url"] = url
+                return
+
+    async def resolve_failed_names(self):
+        """The failure message itself rarely names the song, so look the failed links up once the run is over."""
+        todo = [t for t in self.tracks if t["state"] == "failed" and t.get("url") and t["title"] == "Failed track"]
+        if not todo or self.cancelled:
+            return
+        tmp = Path(tempfile.mkdtemp(prefix="playlist-saver-names-"))
+        try:
+            save = tmp / "names.spotdl"
+            proc = await asyncio.create_subprocess_exec(
+                *SPOTDL, "save", *{t["url"] for t in todo}, "--save-file", str(save),
+                env={**os.environ, "NO_COLOR": "1"},
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            )
+            try:
+                await asyncio.wait_for(proc.wait(), 90)
+            except asyncio.TimeoutError:
+                proc.kill()
+                return
+            names = {}
+            for song in json.loads(save.read_text(encoding="utf-8")):
+                artists = ", ".join(song.get("artists") or [song.get("artist", "")]).strip(", ")
+                names[song.get("url")] = f"{artists} - {song['name']}" if artists else song["name"]
+            for t in todo:
+                t["title"] = names.get(t["url"], t["title"])
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # the track keeps its generic name; retrying it still works
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def name_single(self, title: str):
         """A single song has no playlist name, so the card is named after the song itself."""
@@ -407,6 +452,26 @@ class Job:
                 await slots.release()
             if got:
                 self.record_history()
+            self.finish_retry()
+
+    def retrying(self) -> bool:
+        return any(t.get("retry") == "running" for t in self.tracks)
+
+    def finish_retry(self):
+        """A one-track retry reports back to the track it was started from."""
+        if not self.retry_of:
+            return
+        orig, track = self.retry_of
+        if self.status == "done" and any(t["state"] in ("done", "skipped") for t in self.tracks):
+            track["state"] = "done"
+            track["detail"] = ""
+            track.pop("retry", None)
+        else:
+            track["retry"] = "failed"
+            failed = next((t for t in self.tracks if t["state"] == "failed"), None)
+            detail = (failed or {}).get("detail", "")
+            track["detail"] = "Cancelled" if self.cancelled else (detail or "Still failing")
+        orig.loop.create_task(orig.touch())
 
     def record_history(self):
         try:
@@ -458,7 +523,7 @@ class Job:
                 out_root.mkdir(parents=True, exist_ok=True)
 
             if provider and p.cloud_dest:
-                known = store.playlist_folder(p.url) if p.in_folder else None
+                known = p.into_folder or (store.playlist_folder(p.url) if p.in_folder else None)
                 if known:
                     self.folder = known
                 self.syncer = CloudSyncer(
@@ -484,10 +549,14 @@ class Job:
             if p.nested:
                 template = "{artist}/{album}/{track-number} - {title}.{output-ext}"
             else:
-                template = ("{list-name}/" if p.in_folder else "") + "{artists} - {title}.{output-ext}"
+                folder_part = "{list-name}/" if p.in_folder else ""
+                if p.into_folder:  # retrying one track: the folder already exists, so name it literally
+                    folder_part = p.into_folder.replace("{", "").replace("}", "") + "/"
+                template = folder_part + "{artists} - {title}.{output-ext}"
             cmd = [
                 *SPOTDL, "download", p.url,
                 "--simple-tui",
+                "--print-errors",
                 "--format", p.format,
                 "--bitrate", p.bitrate,
                 "--threads", str(p.threads),
@@ -521,6 +590,7 @@ class Job:
                 if buf:
                     await self.handle_line(buf.decode(errors="replace"))
                 code = await self.proc.wait()
+                await self.resolve_failed_names()
                 if p.m3u and p.is_list:
                     await asyncio.to_thread(self.relativise_m3u, out_root)
             except FileNotFoundError:
@@ -722,6 +792,33 @@ async def cancel_job(job_id: str):
     return job.snapshot()
 
 
+class RetryRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/jobs/{job_id}/retry")
+async def retry_track(job_id: str, req: RetryRequest):
+    """Download one failed track again, into the same place as the rest of its playlist."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(404)
+    if job.status in ACTIVE:
+        raise HTTPException(409, "Wait for this download to finish first.")
+    track = next((t for t in job.tracks if t["state"] == "failed" and t.get("url") == req.url), None)
+    if not track:
+        raise HTTPException(404, "That track isn't in the failed list.")
+    if track.get("retry") == "running":
+        raise HTTPException(409, "This track is already being retried.")
+    plan = replace(job.plan, url=req.url, is_list=False, m3u=False, into_folder=job.folder if job.plan.in_folder else "")
+    new = Job(plan)
+    new.retry_of = (job, track)
+    jobs[new.id] = new
+    track["retry"] = "running"
+    asyncio.create_task(new.run())
+    await job.touch()
+    return new.snapshot()
+
+
 @app.post("/api/jobs/{job_id}/copy")
 async def copy_job(job_id: str, req: CopyRequest):
     job = jobs.get(job_id)
@@ -754,7 +851,7 @@ async def job_events(job_id: str):
                 await job.changed.wait_for(lambda: job.version != seen)
                 seen = job.version
             yield f"data: {json.dumps(job.snapshot())}\n\n"
-            if job.status in ("done", "failed", "cancelled") and job.cloud_state != "syncing":
+            if job.status in ("done", "failed", "cancelled") and job.cloud_state != "syncing" and not job.retrying():
                 return
 
     return StreamingResponse(stream(), media_type="text/event-stream")

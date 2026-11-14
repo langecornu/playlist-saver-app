@@ -3,6 +3,10 @@ export interface Track {
   title: string;
   state: TrackState;
   detail: string;
+  /** Link of a failed track, which is what makes a single-track retry possible */
+  url?: string;
+  /** Set while (running) or after (failed) a one-track retry */
+  retry?: "running" | "failed";
 }
 export type UploadState = "uploaded" | "exists" | "failed";
 export interface Upload {
@@ -186,6 +190,8 @@ export const isTrackLink = (url: string) => /open\.spotify\.com\/track\/|music\.
 
 export const listJobs = () => call<Job[]>("/api/jobs");
 export const createJob = (req: JobRequest) => call<Job>("/api/jobs", json("POST", req));
+export const retryTrack = (id: string, url: string) =>
+  call<Job>(`/api/jobs/${id}/retry`, json("POST", { url }));
 export const cancelJob = (id: string) => call<Job>(`/api/jobs/${id}/cancel`, { method: "POST" });
 export const copyJob = (id: string, provider: CloudKey, cloud_dest?: Dest) =>
   call<Job>(`/api/jobs/${id}/copy`, json("POST", { provider, cloud_dest }));
@@ -213,7 +219,8 @@ export function watchJob(id: string, onUpdate: (j: Job) => void): () => void {
     const job: Job = JSON.parse(e.data);
     onUpdate(job);
     const finished = ["done", "failed", "cancelled"].includes(job.status);
-    if (finished && job.cloud_state !== "syncing") es.close();
+    const retrying = job.tracks.some((t) => t.retry === "running");
+    if (finished && job.cloud_state !== "syncing" && !retrying) es.close();
   };
   es.onerror = () => es.close();
   return () => es.close();

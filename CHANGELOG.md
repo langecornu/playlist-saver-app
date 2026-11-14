@@ -14,6 +14,7 @@ First public release.
 
 ## Unreleased
 
+- A track that fails to download is now listed by name with the reason and a **Retry** button that fetches just that track into the playlist's own folder (or cloud folder). The row turns to Downloaded when the retry succeeds.
 - Beginner-friendly install guide: explains Terminal and Homebrew, with screenshots and a fix for every common error. The same guide is published as `docs/USER_GUIDE.md` and linked from the README, so it is readable on GitHub with all screenshots.
 - The app now uses the project's `.venv` Python automatically, so it works from the Desktop shortcut and on Homebrew Python without activating anything. The update banner's command upgrades the Python the app actually runs on.
 - Built-in user manual: a **Help** link in the top bar opens a searchable, sectioned guide with screenshots, from installing to everyday use. Search matches accents and several words at once and highlights results.
