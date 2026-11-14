@@ -14,6 +14,7 @@ First public release.
 
 ## Unreleased
 
+- The Desktop shortcut now has the app logo as its icon (macOS `AppIcon.icns`, Linux hicolor PNG), and the logo is the browser tab icon.
 - Each download card shows a running timer, and how long it took once finished. Finished cards have an ✕ to remove them (and Activity has Clear finished), so old ones no longer pile up.
 - A download that goes quiet for 90 seconds now says so and why (usually Spotify or YouTube rate-limiting), instead of looking frozen. If the connection to the helper drops, the card is updated or marked interrupted instead of staying on Downloading.
 - A track that fails to download is now listed by name with the reason and a **Retry** button that fetches just that track into the playlist's own folder (or cloud folder). The row turns to Downloaded when the retry succeeds.
